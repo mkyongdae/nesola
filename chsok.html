@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>출결체크 프로그램</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #fileInput {
+            display: none;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            background-color: white;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .student-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .attendance-btn {
+            padding: 5px 10px;
+            margin-left: 5px;
+        }
+        .present { background-color: #4CAF50; }
+        .absent { background-color: #f44336; }
+        .late { background-color: #ff9800; }
+    </style>
+    <script>
+        let students = [];
+
+        function loadStudents() {
+            document.getElementById('fileInput').click();
+        }
+
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) {
+                alert('파일을 선택해주세요.');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    students = XLSX.utils.sheet_to_json(worksheet, {header: ['id', 'name', 'status']});
+                    students.shift(); // 첫 번째 행(헤더)을 제거합니다.
+                    updateStudentList();
+                    alert('학생 명단을 성공적으로 불러왔습니다.');
+                } catch (error) {
+                    console.error('Error processing file:', error);
+                    alert('파일 처리 중 오류가 발생했습니다.');
+                }
+            };
+            reader.onerror = function() {
+                alert('파일 읽는 중 오류가 발생했습니다.');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function updateStudentList() {
+            const list = document.getElementById("studentList");
+            list.innerHTML = "";
+            students.forEach((student, index) => {
+                const li = document.createElement("li");
+                li.className = "student-item";
+                li.innerHTML = `
+                    <span>${student.id || ''} - ${student.name || ''}: ${student.status || '미체크'}</span>
+                    <div>
+                        <button class="attendance-btn present" onclick="checkAttendance(${index}, '출석')">출석</button>
+                        <button class="attendance-btn absent" onclick="checkAttendance(${index}, '결석')">결석</button>
+                        <button class="attendance-btn late" onclick="checkAttendance(${index}, '지각')">지각</button>
+                    </div>
+                `;
+                if (student.attendanceTime) {
+                    li.innerHTML += `<span>${student.attendanceTime}</span>`;
+                }
+                list.appendChild(li);
+            });
+        }
+
+        function checkAttendance(index, status) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            students[index].status = status;
+            students[index].attendanceTime = timeString;
+            updateStudentList();
+        }
+
+        function exportToExcel() {
+            const ws = XLSX.utils.json_to_sheet(students.map(s => ({
+                id: s.id,
+                name: s.name,
+                status: s.status || '미체크',
+                attendanceTime: s.attendanceTime || ''
+            })));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "학생출결");
+            XLSX.writeFile(wb, "출결체크.xlsx");
+        }
+
+        function resetData() {
+            students = [];
+            updateStudentList();
+            alert("데이터가 초기화되었습니다.");
+        }
+
+        window.onload = function() {
+            document.getElementById('fileInput').addEventListener('change', handleFile, false);
+        };
+    </script>
+</head>
+<body>
+    <h1>출결체크 프로그램</h1>
+    <div class="button-container">
+        <input type="file" id="fileInput" accept=".xlsx, .xls">
+        <button onclick="loadStudents()">학생명단 불러오기</button>
+        <button onclick="exportToExcel()">엑셀로 출력</button>
+        <button onclick="resetData()">초기화</button>
+    </div>
+    <ul id="studentList"></ul>
+</body>
+</html>
